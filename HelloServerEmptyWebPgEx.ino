@@ -1,200 +1,136 @@
-
-
-
-
-// This code is derived from the HelloServer Example
-// in the (ESP32) WebServer library .
-//
-// It hosts a webpage which has one temperature reading to display.
-// The webpage is always the same apart from the reading which would change.
-// The getTemp() function simulates getting a temperature reading.
-// homePage.h contains 2 constant string literals which is the two parts of the
-// webpage that never change.
-// handleRoot() builds up the webpage by adding as a C++ String:
-// homePagePart1 + getTemp() +homePagePart2
-// It then serves the webpage with the command:
-// server.send(200, "text/html", message);
-// Note the text is served as html.
-//
-// Replace the code in the homepage.h file with your own website HTML code.
-//
-// This example requires only an ESP32 and download cable. No other hardware is reuired.
-// A wifi SSID and password is required.
-// Written by: Natasha Rohan  12/3/23
-//
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include "homepage.h"
 #include <DFRobot_DHT11.h>
+#include <HCSR04.h>
+
 DFRobot_DHT11 DHT;
 #define DHT11_PIN 4
-#include <HCSR04.h>
-const int TRIG_PIN = 5;
-const int ECHO_PIN = 17;
-long duration;
-float cms, inches;
 
-UltraSonicDistanceSensor distanceSensor(13, 12);
+//to get soil
+const int WateredsoilValue = 2350;  // You need to change this value that you had recorded in the wate
+int soilMoistureValue = 0;
 
+//ultrasonic pins
+const int trigPin = 5;
+const int echoPin = 17;
+
+//pirastatic pump
+const int PERI_MOTOR = 34;
 
 const char* ssid = "Jojo";
 const char* password = "Password123";
-
 WebServer server(80);
 
-
-
-//temp function to simulate temp sensor
-
-String getTemp() {
-
-  DHT.read(DHT11_PIN);
-
-  String temp = String(DHT.temperature);
-
-  return temp;
-}
-
-String getHumi() {
-
-  String humi = String(DHT.humidity);
-
-  return humi;
-}
-
-String getdist() {
-  Distance=distanceSensor.measureDistanceCm;
-  String dist = String(Distance);
-  delay(500);
-  return dist;
-}
-
-
-
-
 void handleRoot() {
+  String temperature = getTemp();
+  String humidity = getHumi();
+  String waterLevel = getwaterlevel();
+  String Soil = getwateringsystem();
 
-  String message = homePagePart1 + getTemp() + homePagePart2 + getHumi() + homePagePart3 + getdist() + homePagePart4;
-
+  String message = homePagePart1 + temperature + homePagePart2 + humidity + homePagePart3 + waterLevel + homePagePart4 + Soil + homePagePart5;
   server.send(200, "text/html", message);
 }
 
-
-
 void handleNotFound() {
-
   String message = "File Not Found\n\n";
-
   message += "URI: ";
-
   message += server.uri();
-
   message += "\nMethod: ";
-
   message += (server.method() == HTTP_GET) ? "GET" : "POST";
-
   message += "\nArguments: ";
-
   message += server.args();
-
   message += "\n";
-
   for (uint8_t i = 0; i < server.args(); i++) {
-
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
-
   server.send(404, "text/plain", message);
 }
 
-
-
 void setup(void) {
-
-
-
   Serial.begin(115200);
+  pinMode(PERI_MOTOR, OUTPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
 
   WiFi.mode(WIFI_STA);
-
   WiFi.begin(ssid, password);
-
   Serial.println("");
 
-
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
-
-  // Wait for connection
-
   while (WiFi.status() != WL_CONNECTED) {
-
     delay(500);
-
     Serial.print(".");
   }
 
   Serial.println("");
-
   Serial.print("Connected to ");
-
   Serial.println(ssid);
-
   Serial.print("IP address: ");
-
   Serial.println(WiFi.localIP());
-
-
+  delay(1000);
 
   if (MDNS.begin("esp32")) {
-
     Serial.println("MDNS responder started");
   }
 
-
-
-  server.on("/", handleRoot);
-
-  server.on("/inline", []() {
-    server.send(200, "text/plain", "this works as well");
-  });
-
+  server.on("/", HTTP_GET, handleRoot);
   server.onNotFound(handleNotFound);
-
-
-
   server.begin();
   Serial.println("HTTP server started");
 }
-}
-
-
 
 void loop(void) {
-
   server.handleClient();
-
-  delay(2);  //allow the cpu to switch to other tasks
-
-  digitalWrite(TRIG_PIN, LOW);
-  delayMicroseconds(5);
-  digitalWrite(TRIG_PIN, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(TRIG_PIN, LOW);
-
-
-  duration = pulseIn(ECHO_PIN, HIGH);
-
-  cms = (duration / 2) / 29.1;
-  inches = (duration / 2) / 74;
-
-  Serial.print(inches);
-  Serial.print("in, ");
-  Serial.print(cms);
-  Serial.print("cm");
-  Serial.println();
-
-  delay(250);
+  delay(2);  // Allow the CPU to switch to other tasks
 }
+
+String getTemp() {
+  DHT.read(DHT11_PIN);
+  return String(DHT.temperature);
+}
+
+String getHumi() {
+  DHT.read(DHT11_PIN);
+  return String(DHT.humidity);
+}
+
+String getwateringsystem() {
+  soilMoistureValue = analogRead(35);
+  if (soilMoistureValue > WateredsoilValue) {
+    Serial.println("Dry\nWatering ");
+    delay(1000);
+    digitalWrite(PERI_MOTOR, HIGH);
+    delay(5000);
+    return String("Dry");
+  } else {        
+    Serial.println("Wet\n Watering not needed");
+    delay(1000);
+    digitalWrite(PERI_MOTOR, LOW);
+    delay(5000);
+    return String("Wet");   
+
+  }
+}
+
+String getwaterlevel() {
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  long duration = pulseIn(echoPin, HIGH);
+  float distance = duration * 0.034 / 2; //distance = (speed of sound(0.034) * pulse duration) / 2
+  float waterLevel = ((25.4 - distance) / 25.4 ) * 100;
+
+  Serial.print("Water level: ");
+  Serial.print(waterLevel);
+  Serial.println("%");
+
+  delay(1000);
+
+  return String(waterLevel);
+}
+
