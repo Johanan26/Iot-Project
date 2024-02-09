@@ -1,24 +1,26 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
+
 #include <ESPmDNS.h>
 #include "homepage.h"
 #include <DFRobot_DHT11.h>
 #include <HCSR04.h>
-
+#include "secrets.h"
 DFRobot_DHT11 DHT;
 #define DHT11_PIN 4
+//ultrasonic pins
+#define trigPin 5
+#define echoPin = 17;
+
+//pirastatic pump
+#define PERI_MOTOR 23
 
 //to get soil
 const int WateredsoilValue = 2350;  // You need to change this value that you had recorded in the wate
 int soilMoistureValue = 0;
 
-//ultrasonic pins
-const int trigPin = 5;
-const int echoPin = 17;
 
-//pirastatic pump
-const int PERI_MOTOR = 34;
 
 const char* ssid = "Jojo";
 const char* password = "Password123";
